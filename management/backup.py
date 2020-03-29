@@ -210,7 +210,7 @@ def get_target_type(config):
 	protocol = config["target"].split(":")[0]
 	return protocol
 
-def perform_backup(full_backup):
+def perform_backup(full_backup, do_not_start_services):
 	env = load_environment()
 
 	# Create an global exclusive lock so that the backup script
@@ -279,9 +279,10 @@ def perform_backup(full_backup):
 			get_env(env))
 	finally:
 		# Start services again.
-		service_command("dovecot", "start", quit=False)
-		service_command("postfix", "start", quit=False)
-		service_command("php7.2-fpm", "start", quit=False)
+		if not do_not_start_services:
+			service_command("dovecot", "start", quit=False)
+			service_command("postfix", "start", quit=False)
+			service_command("php7.2-fpm", "start", quit=False)
 
 	# Remove old backups. This deletes all backup data no longer needed
 	# from more than 3 days ago.
@@ -329,8 +330,9 @@ def perform_backup(full_backup):
 	# backup. Since it checks that dovecot and postfix are running, block for a
 	# bit (maximum of 10 seconds each) to give each a chance to finish restarting
 	# before the status checks might catch them down. See #381.
-	wait_for_service(25, True, env, 10)
-	wait_for_service(993, True, env, 10)
+	if not do_not_start_services:
+		wait_for_service(25, True, env, 10)
+		wait_for_service(993, True, env, 10)
 
 def run_duplicity_verification():
 	env = load_environment()
@@ -558,4 +560,6 @@ if __name__ == "__main__":
 		# Perform a backup. Add --full to force a full backup rather than
 		# possibly performing an incremental backup.
 		full_backup = "--full" in sys.argv
-		perform_backup(full_backup)
+		# Add --donotstartservices to not start services up again after backup
+		do_not_start_services = "--donotstartservices" in sys.argv
+		perform_backup(full_backup, do_not_start_services)
